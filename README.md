@@ -36,7 +36,13 @@ cyolo pi --allow-version-mismatch
 | 宿主 `.agents/skills/modsearch` 软链解析出的包目录、`$HOME/.modsearch` | 相同绝对路径 | 只读 |
 | `$HOME/.ssh`、`$HOME/.gitconfig`、Java、Maven | 相同绝对路径或 `/opt` | 只读 |
 
-宿主 shell 包装函数只调用仓库中的 `bin/cyolo`，不复制入口逻辑；安装包装函数后，裸 `cyolo` 和 `cyolo pi` 都启动 Pi。裸 `cyolo` 的默认行为已经从旧入口改为 Pi，旧 Claude/Codex 入口使用 `cc`、`claude`、`cx` 或 `codex`。
+在 `~/.bashrc` 中加入下面的函数，可以在任意新开的 Bash 终端使用 `cyolo`。函数只调用仓库入口，不复制业务逻辑：
+
+```bash
+cyolo() { "$HOME/projects/cyolo/bin/cyolo" "$@"; }
+```
+
+保存后运行 `source ~/.bashrc`，或重新打开终端。裸 `cyolo` 和 `cyolo pi` 都会启动 Pi。裸 `cyolo` 的默认行为已经从旧入口改为 Pi，旧 Claude/Codex 入口使用 `cc`、`claude`、`cx` 或 `codex`。
 
 modsearch 使用宿主已有包和配置。构建或首次创建容器时，入口解析 `$HOME/.agents/skills/modsearch` 软链，读取包目录路径并把它以只读方式挂载；容器内的 `/usr/local/bin/modsearch` 指向该包的 `dist/main.js`。`$HOME/.modsearch` 也只读挂载，配置内容和 secret 不写入镜像、命令行或日志。
 
