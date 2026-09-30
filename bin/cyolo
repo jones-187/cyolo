@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+HOST_HOME=$HOME
+HOST_USER=$(id -un)
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
+CONTAINER=pi_yolo_env
+IMAGE=cyolo-pi:latest
+
+die() { printf 'cyolo: %s\n' "$*" >&2; exit 1; }
+
+legacy() {
+    local tool=$1 extra=${2:-} directory container command
+    printf '警告：Claude/Codex Docker YOLO 已停止维护；旧入口仍可使用。\n' >&2
+    if [[ $tool == cc || $tool == claude ]]; then
+        directory="$HOST_HOME/app/claude-docker"
+        container=claude_yolo_env
+        command='claude --dangerously-skip-permissions'
+    else
+        directory="$HOST_HOME/app/codex-docker"
+        container=codex_yolo_env
+        command='codex --dangerously-bypass-approvals-and-sandbox'
+    fi
+    export HOST_HOME HOST_USER HOST_UID HOST_GID
+    export PROJECT_PATH="$PWD"
+    cd -- "$directory"
+    if [[ $extra == --build ]]; then
+        docker compose build --no-cache
+    fi
+    docker compose up -d
+    exec docker exec -it --user "$HOST_USER" --workdir "$PROJECT_PATH" \
+        "$container" bash -c "$command"
+}
+
+case ${1:-} in
+    cc|claude|cx|codex) legacy "$@" ;;
+    pi) shift ;;
+esac
+
+build=0
+allow_mismatch=0
+args=()
+while (($#)); do
+    case $1 in
+        --build) build=1; shift ;;
+        --allow-version-mismatch) allow_mismatch=1; shift ;;
+        --) shift; args+=("$@"); break ;;
+        *) args+=("$1"); shift ;;
+    esac
+done
+
+cwd=$(pwd -P)
+projects_root=$(realpath -m -- "$HOST_HOME/projects")
+under_root() { [[ $1 == "$2" || $1 == "$2"/* ]]; }
+if ! under_root "$cwd" "$projects_root" && ! under_root "$cwd" /tmp && ! under_root "$cwd" "$SCRIPT_DIR"; then
+    die "当前目录没有固定映射：$cwd。请进入 ~/projects、/tmp 或 cyolo 项目及其子目录。"
+fi
+
+command -v docker >/dev/null || die '找不到 Docker 命令。'
+docker info --format '{{.ServerVersion}}' >/dev/null 2>&1 || die '无法连接 Docker，请检查 Docker 服务和当前用户权限。'
+
+version() {
+    local output
+    output=$("$@" 2>/dev/null) || return 1
+    if [[ $output =~ ^(pi[[:space:]]+)?([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?)$ ]]; then
+        printf '%s' "${BASH_REMATCH[2]}"
+    else
+        return 1
+    fi
+}
+
+host_version=$(version pi --version) || die '无法读取宿主 Pi 版本；请先确认 pi --version 可用。'
+export HOST_HOME HOST_USER HOST_UID HOST_GID
+export CYOLO_ROOT="$SCRIPT_DIR" PI_VERSION="$host_version"
+compose=(docker compose --project-name cyolo -f "$SCRIPT_DIR/pi/docker-compose.yml")
+
+container_state=$(docker container inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
+
+check_update_allowed() {
+    local state process_state names
+    state=$(docker container inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
+    if [[ $state == running ]]; then
+        if ! process_state=$(docker exec -i --user root "$CONTAINER" python3 - < "$SCRIPT_DIR/scripts/check_pi_processes.py" 2>/dev/null); then
+            die '无法可靠检查容器内 Pi 进程，拒绝更新；请检查容器后重试 cyolo pi --build。'
+        fi
+        case $process_state in
+            idle) ;;
+            busy) die '容器内仍有 Pi 进程，拒绝更新。退出所有容器 Pi 会话后执行：cyolo pi --build。' ;;
+            *) die '容器进程检查返回异常，拒绝更新。' ;;
+        esac
+    elif [[ -z $state ]]; then
+        names=$(docker container ls -a --format '{{.Names}}') || die '无法核实 Pi 容器是否存在，拒绝更新。'
+        if grep -Fxq "$CONTAINER" <<< "$names"; then
+            die '无法读取现有 Pi 容器状态，拒绝更新。'
+        fi
+    elif [[ $state != exited && $state != created ]]; then
+        die 'Pi 容器状态不允许安全更新，请先检查容器。'
+    fi
+}
+
+if ((build)); then
+    check_update_allowed
+    "${compose[@]}" build pi || die 'Pi 镜像构建失败；未替换容器。修复网络后执行：cyolo pi --build。'
+    check_update_allowed
+    "${compose[@]}" up -d --no-build --pull never pi || die 'Pi 镜像已构建，但容器启动失败。'
+else
+    docker image inspect "$IMAGE" >/dev/null 2>&1 || die '缺少 Pi 镜像，请执行：cyolo pi --build。'
+    case $container_state in
+        running) ;;
+        exited|created) docker start "$CONTAINER" >/dev/null || die '无法启动已有 Pi 容器。' ;;
+        '') "${compose[@]}" up -d --no-build --pull never pi || die '无法创建 Pi 容器。' ;;
+        *) die 'Pi 容器不是可用状态，请检查容器。' ;;
+    esac
+fi
+
+container_version=$(version docker exec --user "$HOST_USER" "$CONTAINER" pi --version) || die '无法读取容器 Pi 版本或 Pi 程序不可用；请执行：cyolo pi --build。'
+if [[ $container_version != "$host_version" ]]; then
+    if ((!allow_mismatch)); then
+        printf 'Pi 版本不一致：宿主=%s，容器=%s。\n推荐更新：\n  cyolo pi --build\n应急启动：\n  cyolo pi --allow-version-mismatch\n' "$host_version" "$container_version" >&2
+        exit 1
+    fi
+    printf '警告：显式跳过版本差异，宿主=%s，容器=%s；旧版 Pi 将读取共享配置。\n' "$host_version" "$container_version" >&2
+fi
+
+env_args=()
+while IFS= read -r name; do
+    case $name in
+        HOME|USER|LOGNAME|PATH|PWD|OLDPWD|SHELL|SHLVL|_|HOSTNAME|HOST_HOME|HOST_USER|HOST_UID|HOST_GID|PROJECT_PATH|CYOLO_ROOT|PI_VERSION|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|CDPATH) continue ;;
+        NVM_*|SDKMAN_*|JAVA_HOME|MAVEN_HOME|M2_HOME|NODE_PATH|NODE_OPTIONS|PYTHONHOME|PYTHONPATH|VIRTUAL_ENV|CONDA_PREFIX|LD_PRELOAD|LD_LIBRARY_PATH) continue ;;
+        XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|SSH_AUTH_SOCK|DISPLAY|WAYLAND_DISPLAY|TMPDIR|TMP|TEMP) continue ;;
+        PI_CODING_AGENT_DIR|PI_CODING_AGENT_SESSION_DIR|UV_CACHE_DIR|UV_TOOL_DIR|UV_TOOL_BIN_DIR|UV_PYTHON|UV_PYTHON_INSTALL_DIR|UV_PYTHON_DOWNLOADS) continue ;;
+        GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|GIT_SSH|GIT_SSH_COMMAND) continue ;;
+    esac
+    [[ $name =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && env_args+=(--env "$name")
+done < <(compgen -e)
+
+exec docker exec -it --user "$HOST_USER" --workdir "$cwd" \
+    "${env_args[@]}" "$CONTAINER" pi "${args[@]}"

@@ -1,0 +1,62 @@
+services:
+  pi:
+    build:
+      context: .
+      args:
+        HOST_USER: ${HOST_USER}
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
+        HOST_HOME: ${HOST_HOME}
+        PI_VERSION: ${PI_VERSION}
+        HTTP_PROXY: ${HTTP_PROXY:-${http_proxy:-}}
+        HTTPS_PROXY: ${HTTPS_PROXY:-${https_proxy:-}}
+        ALL_PROXY: ${ALL_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-${no_proxy:-}}
+    image: cyolo-pi:latest
+    container_name: pi_yolo_env
+    hostname: pi-yolo
+    init: true
+    stdin_open: true
+    tty: true
+    restart: always
+    command: ["sleep", "infinity"]
+    extra_hosts:
+      host.docker.internal: host-gateway
+    volumes:
+      - ${HOST_HOME}/projects:${HOST_HOME}/projects
+      - /tmp:/tmp
+      - ${CYOLO_ROOT}:${CYOLO_ROOT}
+      - ${HOST_HOME}/.pi:${HOST_HOME}/.pi
+      - ${HOST_HOME}/.codex:${HOST_HOME}/.codex
+      - ${HOST_HOME}/.agents:${HOST_HOME}/.agents:ro
+      - ${HOST_HOME}/.config/opencode:${HOST_HOME}/.config/opencode:ro
+      - ${HOST_HOME}/.local/share/zentao-bug-ops-mcp:${HOST_HOME}/.local/share/zentao-bug-ops-mcp:ro
+      - ${HOST_HOME}/.ssh:${HOST_HOME}/.ssh:ro
+      - ${HOST_HOME}/.gitconfig:${HOST_HOME}/.gitconfig:ro
+      - ${HOST_HOME}/.sdkman/candidates/maven/current:/opt/maven:ro
+      - ${HOST_HOME}/.sdkman/candidates/java/current:/opt/java:ro
+      - ${HOST_HOME}/.m2:${HOST_HOME}/.m2
+      - pi_yolo_uv_cache:${HOST_HOME}/.cache/uv
+    environment:
+      HOME: ${HOST_HOME}
+      USER: ${HOST_USER}
+      LOGNAME: ${HOST_USER}
+      JAVA_HOME: /opt/java
+      MAVEN_HOME: /opt/maven
+      UV_TOOL_DIR: /opt/uv-tools
+      UV_TOOL_BIN_DIR: /usr/local/bin
+      UV_CACHE_DIR: ${HOST_HOME}/.cache/uv
+      PATH: /opt/maven/bin:/opt/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    networks:
+      default:
+        gw_priority: 1
+      cliproxy-client-net:
+        gw_priority: 0
+
+networks:
+  cliproxy-client-net:
+    external: true
+    name: cliproxy-client-net
+
+volumes:
+  pi_yolo_uv_cache:
