@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+*.local
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+node_modules/
+runtime/
