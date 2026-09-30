@@ -33,9 +33,12 @@ cyolo pi --allow-version-mismatch
 | cyolo 项目根目录 | 相同绝对路径 | 读写 |
 | `$HOME/.pi`、`$HOME/.codex`、`$HOME/.m2` | 相同绝对路径 | 读写 |
 | `$HOME/.agents`、OpenCode 配置、禅道部署目录 | 相同绝对路径 | 只读 |
+| 宿主 `.agents/skills/modsearch` 软链解析出的包目录、`$HOME/.modsearch` | 相同绝对路径 | 只读 |
 | `$HOME/.ssh`、`$HOME/.gitconfig`、Java、Maven | 相同绝对路径或 `/opt` | 只读 |
 
 宿主 shell 包装函数只调用仓库中的 `bin/cyolo`，不复制入口逻辑；安装包装函数后，裸 `cyolo` 和 `cyolo pi` 都启动 Pi。裸 `cyolo` 的默认行为已经从旧入口改为 Pi，旧 Claude/Codex 入口使用 `cc`、`claude`、`cx` 或 `codex`。
+
+modsearch 使用宿主已有包和配置。构建或首次创建容器时，入口解析 `$HOME/.agents/skills/modsearch` 软链，读取包目录路径并把它以只读方式挂载；容器内的 `/usr/local/bin/modsearch` 指向该包的 `dist/main.js`。`$HOME/.modsearch` 也只读挂载，配置内容和 secret 不写入镜像、命令行或日志。
 
 共享 `.pi` 配置和会话目录会让多个终端看到同一状态；同时修改同一会话或配置时没有隔离保证。生产 MySQL 查询仍保留 MCP 的人工文字确认，这是无人值守流程中的明确例外。
 

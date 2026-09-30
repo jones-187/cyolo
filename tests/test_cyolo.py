@@ -23,6 +23,8 @@ if argv[:1] == ["info"]:
 if argv[:2] == ["image", "inspect"]:
     raise SystemExit(0 if state.get("image", True) else 1)
 if argv and argv[0] == "compose":
+    with open(os.environ["FAKE_DOCKER_LOG"], "a", encoding="utf-8") as f:
+        f.write(json.dumps(["__compose_env__", os.environ.get("MODSEARCH_PACKAGE_DIR", "")]) + "\n")
     raise SystemExit(state.get("compose_status", 0))
 if argv[:2] == ["container", "inspect"]:
     if not state.get("container", True): raise SystemExit(1)
@@ -51,6 +53,13 @@ class CyoloCliTests(unittest.TestCase):
             docker = tools / "docker"; docker.write_text(FAKE_DOCKER, encoding="utf-8"); docker.chmod(0o755)
             pi = tools / "pi"; pi.write_text("#!/bin/sh\nprintf '%s\\n' 'pi 0.99.1'\n", encoding="utf-8"); pi.chmod(0o755)
             log = td / "docker.jsonl"; home = pathlib.Path(host_home) if host_home else td / "home"; (home / "projects").mkdir(parents=True, exist_ok=True)
+            package = home / "modsearch-package"; (package / "dist").mkdir(parents=True, exist_ok=True)
+            (package / "dist" / "main.js").write_text("// fixture\n", encoding="utf-8")
+            skill = home / ".agents" / "skills"; skill.mkdir(parents=True, exist_ok=True)
+            if not (skill / "modsearch").exists() and not (skill / "modsearch").is_symlink():
+                (skill / "modsearch").symlink_to(package / "skills" / "modsearch", target_is_directory=True)
+            (package / "skills" / "modsearch").mkdir(parents=True, exist_ok=True)
+            (home / ".modsearch").mkdir(exist_ok=True)
             env = {
                 "PATH": f"{tools}:/usr/bin:/bin", "HOME": str(home), "HOST_USER": "tester",
                 "HOST_UID": "1001", "HOST_GID": "1001", "FAKE_DOCKER_STATE": json.dumps(state),
@@ -136,6 +145,14 @@ class CyoloCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0); self.assertFalse(any(c[:1] == ["start"] for c in calls))
         self.assertFalse(any(c[:1] == ["exec"] and "-it" in c for c in calls))
         self.assertFalse(any(c[:1] == ["compose"] and "up" in c for c in calls))
+
+    def test_build_receives_resolved_modsearch_package_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            result, calls = self.run_cli(td, "pi", "--build", state={"container": False})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        env_calls = [c for c in calls if c[:1] == ["__compose_env__"]]
+        self.assertTrue(env_calls)
+        self.assertTrue(env_calls[0][1].endswith("/modsearch-package"))
 
     def test_idle_before_build_then_busy_before_replace_rejects_compose_up(self):
         with tempfile.TemporaryDirectory() as td:

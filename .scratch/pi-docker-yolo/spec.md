@@ -36,6 +36,7 @@
 26. As a 项目维护者, I want shell 只调用仓库脚本, so that 实现与文档可追踪维护。
 27. As a 项目维护者, I want 项目级 GitHub 身份和 SSH 配置, so that 不影响其他仓库账户。
 28. As a 项目维护者, I want 本地 spec 与独立 tickets, so that 子代理可按依赖实施并逐项验收。
+29. As a Pi 用户, I want 现有 modsearch 技能和命令在容器可用, so that 迁移不丢失已安装的搜索能力。
 
 ## Implementation Decisions
 
@@ -43,6 +44,7 @@
 - Shell 包装函数仅调用项目入口。裸入口默认 Pi；cc/claude、cx/codex 调用原有独立实现并警告，不扩展旧镜像。
 - Pi 独立 Compose 项目和长期容器，容器名 pi_yolo_env。保持宿主用户名、UID、GID和 cwd；固定工作区、临时目录及 cyolo 项目映射。
 - Pi 和 Codex 用户配置整体读写共享；Agent skills、OpenCode 配置和禅道部署目录按运行需要映射。SSH/Git配置只读，Maven/Java只读，Maven缓存读写。
+- 现有 modsearch 技能软链接指向 NVM 中的包目录。仅只读映射这个包子目录与 modsearch 用户配置，提供容器 CLI 入口；不映射整个 NVM，不新增搜索服务或 MCP。挂载源从宿主现有技能链接解析，不复制凭据。
 - 使用 Node 24 bookworm 镜像，构建时读取宿主 Pi 准确版本并独立安装。正常启动不联网安装；版本不匹配立即失败，明确应急参数仅跳过版本差异。
 - 更新命令检查容器 Pi 进程；运行中拒绝更新。检查失败不能假装无进程而继续替换容器。
 - Pi包装参数为 --build、--allow-version-mismatch；--之后全部交给Pi，其余参数保持顺序和字面值。

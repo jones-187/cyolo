@@ -8,6 +8,7 @@ services:
         HOST_GID: ${HOST_GID}
         HOST_HOME: ${HOST_HOME}
         PI_VERSION: ${PI_VERSION}
+        MODSEARCH_PACKAGE_DIR: ${MODSEARCH_PACKAGE_DIR}
         HTTP_PROXY: ${HTTP_PROXY:-${http_proxy:-}}
         HTTPS_PROXY: ${HTTPS_PROXY:-${https_proxy:-}}
         ALL_PROXY: ${ALL_PROXY:-}
@@ -29,6 +30,8 @@ services:
       - ${HOST_HOME}/.pi:${HOST_HOME}/.pi
       - ${HOST_HOME}/.codex:${HOST_HOME}/.codex
       - ${HOST_HOME}/.agents:${HOST_HOME}/.agents:ro
+      - ${MODSEARCH_PACKAGE_DIR}:${MODSEARCH_PACKAGE_DIR}:ro
+      - ${HOST_HOME}/.modsearch:${HOST_HOME}/.modsearch:ro
       - ${HOST_HOME}/.config/opencode:${HOST_HOME}/.config/opencode:ro
       - ${HOST_HOME}/.local/share/zentao-bug-ops-mcp:${HOST_HOME}/.local/share/zentao-bug-ops-mcp:ro
       - ${HOST_HOME}/.ssh:${HOST_HOME}/.ssh:ro

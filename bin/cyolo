@@ -76,6 +76,18 @@ export HOST_HOME HOST_USER HOST_UID HOST_GID
 export CYOLO_ROOT="$SCRIPT_DIR" PI_VERSION="$host_version"
 compose=(docker compose --project-name cyolo -f "$SCRIPT_DIR/pi/docker-compose.yml")
 
+prepare_modsearch() {
+    local skill_path="$HOST_HOME/.agents/skills/modsearch" resolved
+    [[ -L "$skill_path" ]] || die "找不到宿主 modsearch skill 软链：$skill_path"
+    resolved=$(readlink -f -- "$skill_path") || die '无法解析宿主 modsearch skill 软链。'
+    case $resolved in
+        */skills/modsearch) MODSEARCH_PACKAGE_DIR=${resolved%/skills/modsearch} ;;
+        *) die "modsearch skill 软链未指向有效包：$resolved" ;;
+    esac
+    [[ -f "$MODSEARCH_PACKAGE_DIR/dist/main.js" ]] || die '宿主 modsearch 包缺少 dist/main.js。'
+    export MODSEARCH_PACKAGE_DIR
+}
+
 container_state=$(docker container inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
 
 check_update_allowed() {
@@ -102,6 +114,7 @@ check_update_allowed() {
 
 if ((build)); then
     check_update_allowed
+    prepare_modsearch
     "${compose[@]}" build pi || die 'Pi 镜像构建失败；未替换容器。修复网络后执行：cyolo pi --build。'
     check_update_allowed
     "${compose[@]}" up -d --no-build --pull never pi || die 'Pi 镜像已构建，但容器启动失败。'
@@ -110,7 +123,7 @@ else
     case $container_state in
         running) ;;
         exited|created) docker start "$CONTAINER" >/dev/null || die '无法启动已有 Pi 容器。' ;;
-        '') "${compose[@]}" up -d --no-build --pull never pi || die '无法创建 Pi 容器。' ;;
+        '') prepare_modsearch; "${compose[@]}" up -d --no-build --pull never pi || die '无法创建 Pi 容器。' ;;
         *) die 'Pi 容器不是可用状态，请检查容器。' ;;
     esac
 fi
@@ -127,7 +140,7 @@ fi
 env_args=()
 while IFS= read -r name; do
     case $name in
-        HOME|USER|LOGNAME|PATH|PWD|OLDPWD|SHELL|SHLVL|_|HOSTNAME|HOST_HOME|HOST_USER|HOST_UID|HOST_GID|PROJECT_PATH|CYOLO_ROOT|PI_VERSION|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|CDPATH) continue ;;
+        HOME|USER|LOGNAME|PATH|PWD|OLDPWD|SHELL|SHLVL|_|HOSTNAME|HOST_HOME|HOST_USER|HOST_UID|HOST_GID|PROJECT_PATH|CYOLO_ROOT|PI_VERSION|MODSEARCH_PACKAGE_DIR|BASH_ENV|ENV|SHELLOPTS|BASHOPTS|CDPATH) continue ;;
         NVM_*|SDKMAN_*|JAVA_HOME|MAVEN_HOME|M2_HOME|NODE_PATH|NODE_OPTIONS|PYTHONHOME|PYTHONPATH|VIRTUAL_ENV|CONDA_PREFIX|LD_PRELOAD|LD_LIBRARY_PATH) continue ;;
         XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|SSH_AUTH_SOCK|DISPLAY|WAYLAND_DISPLAY|TMPDIR|TMP|TEMP) continue ;;
         PI_CODING_AGENT_DIR|PI_CODING_AGENT_SESSION_DIR|UV_CACHE_DIR|UV_TOOL_DIR|UV_TOOL_BIN_DIR|UV_PYTHON|UV_PYTHON_INSTALL_DIR|UV_PYTHON_DOWNLOADS) continue ;;

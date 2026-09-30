@@ -36,6 +36,10 @@ RUN test -n "${PI_VERSION}" \
     && git config --system core.quotepath false \
     && git config --system core.editor vim
 
+ARG MODSEARCH_PACKAGE_DIR
+RUN test -n "${MODSEARCH_PACKAGE_DIR}" \
+    && ln -s "${MODSEARCH_PACKAGE_DIR}/dist/main.js" /usr/local/bin/modsearch
+
 ENV HOME=${HOST_HOME} \
     USER=${HOST_USER} \
     LOGNAME=${HOST_USER} \
