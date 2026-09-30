@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] 当前MCP的Node命令改为node，保留其他MCP配置与业务规则。
-- [ ] 安装器生成node并能识别迁移旧绝对路径。
-- [ ] 注册命令边界验证通过，不运行生产SQL或修改业务数据。
-- [ ] 用户已有skills改动保留，提交只包含本次必要修改。
+- [x] 当前MCP的Node命令改为node，保留其他MCP配置与业务规则。
+- [x] 安装器生成node并能识别迁移旧绝对路径。
+- [x] 注册命令边界验证通过，不运行生产SQL或修改业务数据。
+- [x] 用户已有skills改动保留，提交只包含本次必要修改。
