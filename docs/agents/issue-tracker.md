@@ -1,5 +1,7 @@
 # 本地任务跟踪
 
+- 需求和任务仅在本地保留，不纳入版本控制，也不随仓库发布。
+
 - Tracker：本地 Markdown 文件，不发布到外部服务。
 - 需求：`.scratch/pi-docker-yolo/spec.md`。
 - Tickets：`.scratch/pi-docker-yolo/issues/`，每个任务独立文件，依赖写在 Blocked by。
