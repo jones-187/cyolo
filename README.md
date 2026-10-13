@@ -20,6 +20,8 @@ cyolo pi --allow-version-mismatch
 
 `--` 后的参数原样传给 Pi。`--build` 会在构建前检查容器内是否还有 Pi 进程；发现进程或检查失败都会拒绝构建，避免打断任务。普通启动不会自动构建，也不会因 Compose 配置变化替换正在运行的容器。
 
+关闭终端窗口不会结束容器里的 Pi 进程，它会一直存活并占内存，也会让 `--build` 持续被拒。退出时请在 Pi 里按 Ctrl+D 或输入 `/exit`。相关事实、本期决定和备选方案见 `docs/orphan-pi-sessions.md`。
+
 环境变量按名称自动传给本次 `docker exec`，不把值写入命令行或日志。身份、PATH、HOME、SHLVL、IPC、Pi 会话目录等运行时变量会过滤；多行值保持安全传递。宿主 Git 身份只通过项目配置生效，不修改全局 Git 或 SSH 配置。
 
 镜像构建时准备 Node 24、宿主准确 Pi 版本、PyYAML、sqlglot、PyMySQL、uv/uvx 和 Grafana MCP；Grafana uv 缓存使用持久 Docker volume。当前五个 MCP 配置保持现状，不新增 MCP。测试和验证不执行生产 SQL。
